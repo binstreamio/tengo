@@ -152,6 +152,15 @@ func (s *Script) Run() (compiled *Compiled, err error) {
 	return
 }
 
+func (s *Script) RunWithVM(v *VM) (compiled *Compiled, err error) {
+	compiled, err = s.Compile()
+	if err != nil {
+		return
+	}
+	err = compiled.RunWithVM(v)
+	return
+}
+
 // RunContext is like Run but includes a context.
 func (s *Script) RunContext(
 	ctx context.Context,
@@ -208,6 +217,16 @@ func (c *Compiled) Run() error {
 	defer c.lock.Unlock()
 
 	v := NewVM(c.bytecode, c.globals, c.maxAllocs)
+	return v.Run()
+}
+
+// Run executes the compiled script in the virtual machine.
+func (c *Compiled) RunWithVM(v *VM) error {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	v.Reload(c.bytecode, c.globals, c.maxAllocs)
+
 	return v.Run()
 }
 

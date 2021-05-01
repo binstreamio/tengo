@@ -546,3 +546,71 @@ func compiledIsDefined(
 ) {
 	require.Equal(t, expected, c.IsDefined(name))
 }
+
+func TestScript_RunWithVM(t *testing.T) {
+	vm := tengo.NewEmptyVM()
+
+	s := tengo.NewScript([]byte(`a := b`))
+	err := s.Add("b", 5)
+	require.NoError(t, err)
+	c, err := s.RunWithVM(vm)
+	require.NoError(t, err)
+	require.NotNil(t, c)
+	compiledGet(t, c, "a", int64(5))
+
+	ss := tengo.NewScript([]byte(`math := import("math"); a := math.abs(-19.84)`))
+	ss.SetImports(stdlib.GetModuleMap("math"))
+	c, err = ss.RunWithVM(vm)
+	require.NoError(t, err)
+	compiledGet(t, c, "a", 19.84)
+}
+
+func TestCompiled_RunWithVM(t *testing.T) {
+	vm := tengo.NewEmptyVM()
+
+	s := tengo.NewScript([]byte(`a := [1, 2, 3, 4, 5, 6, 7, 8, 9];
+	for i := 0; i < 1000; i++ {
+		a[0]; a[1]; a[2]; a[3]; a[4]; a[5]; a[6]; a[7]; a[7];
+	}
+`))
+	s.Add("p", "null")
+
+	c, err := s.Compile()
+	require.NoError(t, err)
+
+	c1 := c.Clone()
+	c1.Set("p", "p1")
+	err = c1.RunWithVM(vm)
+	require.NoError(t, err)
+	compiledGet(t, c1, "p", "p1")
+
+	c2 := c.Clone()
+	c1.Set("p", "p2")
+	err = c2.RunWithVM(vm)
+	require.NoError(t, err)
+	compiledGet(t, c1, "p", "p2")
+}
+
+func BenchmarkArrayIndexVMReload(b *testing.B) {
+	benchVMReload(b.N, `a := [1, 2, 3, 4, 5, 6, 7, 8, 9];
+        for i := 0; i < 1000; i++ {
+            a[0]; a[1]; a[2]; a[3]; a[4]; a[5]; a[6]; a[7]; a[7];
+        }
+    `)
+}
+
+func benchVMReload(n int, input string) {
+	s := tengo.NewScript([]byte(input))
+	vm := tengo.NewEmptyVM()
+
+	c, err := s.Compile()
+	if err != nil {
+		panic(err)
+	}
+
+	for i := 0; i < n; i++ {
+		if err := c.RunWithVM(vm); err != nil {
+			panic(err)
+		}
+	}
+}

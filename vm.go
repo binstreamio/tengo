@@ -59,9 +59,41 @@ func NewVM(
 	return v
 }
 
+func NewEmptyVM() *VM {
+	v := &VM{
+		sp:          0,
+		framesIndex: 1,
+		ip:          -1,
+	}
+
+	return v
+}
+
 // Abort aborts the execution.
 func (v *VM) Abort() {
 	atomic.StoreInt64(&v.aborting, 1)
+}
+
+func (v *VM) Reload(bytecode *Bytecode,
+	globals []Object,
+	maxAllocs int64,
+) {
+	if globals == nil {
+		globals = make([]Object, GlobalsSize)
+	}
+
+	v.constants = bytecode.Constants
+	v.sp = 0
+	v.globals = globals
+	v.fileSet = bytecode.FileSet
+	v.framesIndex = 1
+	v.ip = -1
+	v.maxAllocs = maxAllocs
+
+	v.frames[0].fn = bytecode.MainFunction
+	v.frames[0].ip = -1
+	v.curFrame = &v.frames[0]
+	v.curInsts = v.curFrame.fn.Instructions
 }
 
 // Run starts the execution.
